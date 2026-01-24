@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Agentic Security Framework</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .card { background-color: #1e293b; border: 1px solid #334155; transition: all 0.3s ease; }
+        .btn-primary { background-color: #0891b2; color: white; }
+        .btn-primary:hover { background-color: #06b6d4; }
+        .btn-success { background-color: #059669; color: white; }
+        .btn-success:hover { background-color: #10b981; }
+        .code-block { background-color: #020617; border-left: 3px solid #f87171; }
+        .fixed-card { border-color: #10b981; background-color: #064e3b; }
+        .active-card { border-color: #06b6d4; box-shadow: 0 0 15px rgba(6,182,212,0.3); transform: scale(1.01); }
+    </style>
+</head>
+<body class="p-8 max-w-6xl mx-auto">
+
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-cyan-400">Agentic Security Framework</h1>
+            <p class="text-slate-400">Autonomous Vulnerability Discovery & Remediation</p>
+        </div>
+        <div id="statusIndicator" class="hidden px-4 py-2 bg-yellow-900 text-yellow-200 rounded-full text-sm font-bold animate-pulse">
+            System Active...
+        </div>
+    </div>
+
+    <div class="card p-6 rounded-lg shadow-xl mb-8 flex gap-4 items-center">
+        <div class="flex-grow">
+            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Target Directory (Absolute Path)</label>
+            <input type="text" id="dirPath" class="w-full p-3 rounded bg-slate-900 border border-slate-700 focus:border-cyan-500 outline-none mono text-sm" placeholder="C:/Users/Project/VulnerableApp">
+        </div>
+        <button onclick="runScan()" class="btn-primary px-8 py-3 rounded font-bold h-full mt-5 transition shadow-lg">
+            🔍 SCAN TARGET
+        </button>
+    </div>
+
+    <div id="resultsArea" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+            <h2 class="text-xl font-bold text-white">Vulnerabilities Detected: <span id="vulnCount" class="text-red-400">0</span></h2>
+            <button onclick="fixAll()" id="fixAllBtn" class="btn-success px-6 py-2 rounded font-bold shadow-lg flex items-center gap-2">
+                🛡️ Auto-Fix All Issues
+            </button>
+        </div>
+        <div id="findingsList" class="space-y-4"></div>
+    </div>
+
+    <script>
+        let currentFindings = [];
+        // Force a guaranteed wait time
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        const updateStatus = (active, msg) => {
+            const el = document.getElementById('statusIndicator');
+            if (active) {
+                el.innerText = msg || "Processing...";
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        };
+
+        async function runScan() {
+            const path = document.getElementById('dirPath').value.trim();
+            if(!path) return alert("Please enter a path.");
+            
+            updateStatus(true, "Scanning Directory...");
+            document.getElementById('findingsList').innerHTML = '';
+            document.getElementById('resultsArea').classList.add('hidden');
+
+            try {
+                const res = await fetch('http://localhost:5000/api/scan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                const findings = await res.json();
+                
+                if(findings.error) {
+                    alert(findings.error);
+                    updateStatus(false);
+                    return;
+                }
+
+                currentFindings = findings;
+                renderFindings(findings);
+                updateStatus(false);
+
+            } catch(e) {
+                alert("Connection Error: " + e.message);
+                updateStatus(false);
+            }
+        }
+
+        function renderFindings(findings) {
+            const container = document.getElementById('findingsList');
+            document.getElementById('vulnCount').innerText = findings.length;
+            document.getElementById('resultsArea').classList.remove('hidden');
+
+            if(findings.length === 0) {
+                container.innerHTML = `<div class="p-4 bg-green-900 text-green-200 rounded">✅ No vulnerabilities found! System is secure.</div>`;
+                document.getElementById('fixAllBtn').classList.add('hidden');
+                return;
+            }
+
+            findings.forEach((f, index) => {
+                const card = document.createElement('div');
+                card.className = `card p-5 rounded-lg`;
+                card.id = `card-${index}`;
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <span class="bg-red-900 text-red-200 text-xs font-bold px-2 py-1 rounded border border-red-700">${f.vulnerability_type}</span>
+                            <span class="text-slate-500 text-xs ml-2 mono">${f.file_path}:${f.line_number}</span>
+                        </div>
+                        <button id="btn-${index}" class="text-xs bg-slate-700 px-3 py-1 rounded text-white transition cursor-default">Pending</button>
+                    </div>
+                    <p class="text-sm text-slate-300 mb-3">${f.description}</p>
+                    <pre class="code-block p-3 rounded text-xs text-slate-300 mono overflow-x-auto whitespace-pre-wrap">${f.code_snippet}</pre>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function fixSingle(index) {
+            return new Promise(async (resolve) => {
+                const finding = currentFindings[index];
+                const btn = document.getElementById(`btn-${index}`);
+                const card = document.getElementById(`card-${index}`);
+
+                try {
+                    // --- STEP 1: UI FEEDBACK (Thinking) ---
+                    btn.innerText = "Analyzing...";
+                    btn.classList.replace('bg-slate-700', 'bg-blue-600');
+                    btn.classList.add('animate-pulse');
+                    card.classList.add('active-card');
+                    
+                    // FORCE WAIT 1.5 SECONDS
+                    await delay(1500); 
+
+                    // --- STEP 2: UI FEEDBACK (Patching) ---
+                    btn.innerText = "Patching...";
+                    await delay(1500);
+
+                    // --- STEP 3: THE ACTUAL REQUEST ---
+                    const res = await fetch('http://localhost:5000/api/fix', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(finding)
+                    });
+                    const data = await res.json();
+
+                    // --- STEP 4: UI FEEDBACK (Verifying) ---
+                    btn.innerText = "Verifying...";
+                    await delay(1000);
+
+                    if(data.status === 'success') {
+                        // SUCCESS STATE
+                        card.innerHTML = `
+                            <div class="flex items-center gap-4 text-green-300">
+                                <div class="bg-green-800 p-2 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-lg">Remediation Complete</h3>
+                                    <p class="text-xs text-green-200">Patched: <span class="mono font-bold">${data.function}</span></p>
+                                </div>
+                            </div>
+                        `;
+                        card.classList.replace('active-card', 'fixed-card');
+                        card.style.borderColor = '#10b981';
+                        resolve(true);
+                    } else {
+                        // FAILURE STATE
+                        console.error(data.message);
+                        btn.innerText = "Failed";
+                        btn.classList.replace('bg-blue-600', 'bg-red-600');
+                        btn.classList.remove('animate-pulse');
+                        card.classList.remove('active-card');
+                        resolve(false);
+                    }
+                } catch(e) {
+                    console.error(e);
+                    btn.innerText = "Error";
+                    card.classList.remove('active-card');
+                    resolve(false);
+                }
+            });
+        }
+
+        async function fixAll() {
+            if(!confirm("Initiate Autonomous Remediation Protocol?")) return;
+            
+            const buttons = Array.from(document.querySelectorAll('button[id^="btn-"]'));
+            const total = buttons.length;
+            
+            const mainBtn = document.getElementById('fixAllBtn');
+            mainBtn.disabled = true;
+            mainBtn.innerText = "Agent Running...";
+            mainBtn.classList.add('animate-pulse');
+
+            // --- THE LOOP ---
+            for (let i = 0; i < total; i++) {
+                const btn = buttons[i];
+                
+                // Scroll into view
+                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                updateStatus(true, `Fixing Vulnerability ${i + 1} of ${total}...`);
+                
+                // Wait for scroll
+                await delay(500);
+
+                const index = parseInt(btn.id.split('-')[1]);
+                
+                // WAIT FOR THIS FIX TO FINISH BEFORE MOVING TO NEXT
+                await fixSingle(index);
+                
+                // Small pause after finishing a card
+                await delay(500);
+            }
+            
+            updateStatus(false);
+            mainBtn.innerText = "✅ System Secure";
+            mainBtn.classList.remove('animate-pulse');
+            mainBtn.classList.replace('btn-success', 'bg-slate-700');
+            
+            setTimeout(() => alert("All critical vulnerabilities have been patched."), 500);
+        }
+    </script>
+</body>
+</html>
