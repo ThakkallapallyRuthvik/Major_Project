@@ -51,187 +51,157 @@
     </div>
 
     <script>
-        let currentFindings = [];
-        // Force a guaranteed wait time
-        const delay = ms => new Promise(res => setTimeout(res, ms));
+    let currentFindings = [];
+    const delay = ms => new Promise(res => setTimeout(res, ms));
 
-        const updateStatus = (active, msg) => {
-            const el = document.getElementById('statusIndicator');
-            if (active) {
-                el.innerText = msg || "Processing...";
-                el.classList.remove('hidden');
-            } else {
-                el.classList.add('hidden');
-            }
-        };
-
-        async function runScan() {
-            const path = document.getElementById('dirPath').value.trim();
-            if(!path) return alert("Please enter a path.");
-            
-            updateStatus(true, "Scanning Directory...");
-            document.getElementById('findingsList').innerHTML = '';
-            document.getElementById('resultsArea').classList.add('hidden');
-
-            try {
-                const res = await fetch('http://localhost:5000/api/scan', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: path})
-                });
-                const findings = await res.json();
-                
-                if(findings.error) {
-                    alert(findings.error);
-                    updateStatus(false);
-                    return;
-                }
-
-                currentFindings = findings;
-                renderFindings(findings);
-                updateStatus(false);
-
-            } catch(e) {
-                alert("Connection Error: " + e.message);
-                updateStatus(false);
-            }
+    const updateStatus = (active, msg) => {
+        const el = document.getElementById('statusIndicator');
+        if (active) {
+            el.innerText = msg;
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
         }
+    };
 
-        function renderFindings(findings) {
-            const container = document.getElementById('findingsList');
-            document.getElementById('vulnCount').innerText = findings.length;
-            document.getElementById('resultsArea').classList.remove('hidden');
+    async function runScan() {
+        const path = document.getElementById('dirPath').value.trim();
+        if(!path) return alert("Please enter a path.");
+        
+        // --- FIXED: RESET THE UI STATE ON SCAN ---
+        const btn = document.getElementById('fixAllBtn');
+        btn.innerText = "🛡️ Auto-Fix All Issues";
+        btn.disabled = false;
+        btn.classList.replace('bg-slate-700', 'btn-success');
+        btn.classList.remove('animate-pulse');
+        // -----------------------------------------
 
-            if(findings.length === 0) {
-                container.innerHTML = `<div class="p-4 bg-green-900 text-green-200 rounded">✅ No vulnerabilities found! System is secure.</div>`;
-                document.getElementById('fixAllBtn').classList.add('hidden');
+        updateStatus(true, "Scanning Directory...");
+        document.getElementById('findingsList').innerHTML = '';
+        document.getElementById('resultsArea').classList.add('hidden');
+
+        try {
+            const res = await fetch('http://localhost:5000/api/scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            });
+            const findings = await res.json();
+            
+            if(findings.error) {
+                alert(findings.error);
+                updateStatus(false);
                 return;
             }
 
-            findings.forEach((f, index) => {
-                const card = document.createElement('div');
-                card.className = `card p-5 rounded-lg`;
-                card.id = `card-${index}`;
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <span class="bg-red-900 text-red-200 text-xs font-bold px-2 py-1 rounded border border-red-700">${f.vulnerability_type}</span>
-                            <span class="text-slate-500 text-xs ml-2 mono">${f.file_path}:${f.line_number}</span>
-                        </div>
-                        <button id="btn-${index}" class="text-xs bg-slate-700 px-3 py-1 rounded text-white transition cursor-default">Pending</button>
-                    </div>
-                    <p class="text-sm text-slate-300 mb-3">${f.description}</p>
-                    <pre class="code-block p-3 rounded text-xs text-slate-300 mono overflow-x-auto whitespace-pre-wrap">${f.code_snippet}</pre>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        async function fixSingle(index) {
-            return new Promise(async (resolve) => {
-                const finding = currentFindings[index];
-                const btn = document.getElementById(`btn-${index}`);
-                const card = document.getElementById(`card-${index}`);
-
-                try {
-                    // --- STEP 1: UI FEEDBACK (Thinking) ---
-                    btn.innerText = "Analyzing...";
-                    btn.classList.replace('bg-slate-700', 'bg-blue-600');
-                    btn.classList.add('animate-pulse');
-                    card.classList.add('active-card');
-                    
-                    // FORCE WAIT 1.5 SECONDS
-                    await delay(1500); 
-
-                    // --- STEP 2: UI FEEDBACK (Patching) ---
-                    btn.innerText = "Patching...";
-                    await delay(1500);
-
-                    // --- STEP 3: THE ACTUAL REQUEST ---
-                    const res = await fetch('http://localhost:5000/api/fix', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(finding)
-                    });
-                    const data = await res.json();
-
-                    // --- STEP 4: UI FEEDBACK (Verifying) ---
-                    btn.innerText = "Verifying...";
-                    await delay(1000);
-
-                    if(data.status === 'success') {
-                        // SUCCESS STATE
-                        card.innerHTML = `
-                            <div class="flex items-center gap-4 text-green-300">
-                                <div class="bg-green-800 p-2 rounded-full">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold text-lg">Remediation Complete</h3>
-                                    <p class="text-xs text-green-200">Patched: <span class="mono font-bold">${data.function}</span></p>
-                                </div>
-                            </div>
-                        `;
-                        card.classList.replace('active-card', 'fixed-card');
-                        card.style.borderColor = '#10b981';
-                        resolve(true);
-                    } else {
-                        // FAILURE STATE
-                        console.error(data.message);
-                        btn.innerText = "Failed";
-                        btn.classList.replace('bg-blue-600', 'bg-red-600');
-                        btn.classList.remove('animate-pulse');
-                        card.classList.remove('active-card');
-                        resolve(false);
-                    }
-                } catch(e) {
-                    console.error(e);
-                    btn.innerText = "Error";
-                    card.classList.remove('active-card');
-                    resolve(false);
-                }
-            });
-        }
-
-        async function fixAll() {
-            if(!confirm("Initiate Autonomous Remediation Protocol?")) return;
+            // --- FIXED: SORT IN PLACE BEFORE RENDERING ---
+            // Sort bottom-up so line numbers don't shift during sequential fix
+            findings.sort((a, b) => b.line_number - a.line_number);
             
-            const buttons = Array.from(document.querySelectorAll('button[id^="btn-"]'));
-            const total = buttons.length;
-            
-            const mainBtn = document.getElementById('fixAllBtn');
-            mainBtn.disabled = true;
-            mainBtn.innerText = "Agent Running...";
-            mainBtn.classList.add('animate-pulse');
-
-            // --- THE LOOP ---
-            for (let i = 0; i < total; i++) {
-                const btn = buttons[i];
-                
-                // Scroll into view
-                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
-                updateStatus(true, `Fixing Vulnerability ${i + 1} of ${total}...`);
-                
-                // Wait for scroll
-                await delay(500);
-
-                const index = parseInt(btn.id.split('-')[1]);
-                
-                // WAIT FOR THIS FIX TO FINISH BEFORE MOVING TO NEXT
-                await fixSingle(index);
-                
-                // Small pause after finishing a card
-                await delay(500);
-            }
-            
+            currentFindings = findings;
+            renderFindings(findings);
             updateStatus(false);
-            mainBtn.innerText = "✅ System Secure";
-            mainBtn.classList.remove('animate-pulse');
-            mainBtn.classList.replace('btn-success', 'bg-slate-700');
-            
-            setTimeout(() => alert("All critical vulnerabilities have been patched."), 500);
+
+        } catch(e) {
+            alert("Connection Error: " + e.message);
+            updateStatus(false);
         }
+    }
+
+    function renderFindings(findings) {
+        const container = document.getElementById('findingsList');
+        document.getElementById('vulnCount').innerText = findings.length;
+        document.getElementById('resultsArea').classList.remove('hidden');
+
+        if(findings.length === 0) {
+            container.innerHTML = `<div class="p-4 bg-green-900 text-green-200 rounded">✅ No vulnerabilities found! System is secure.</div>`;
+            document.getElementById('fixAllBtn').classList.add('hidden');
+            return;
+        }
+
+        findings.forEach((f, index) => {
+            const card = document.createElement('div');
+            card.className = `card p-5 rounded-lg mb-4`;
+            card.id = `card-${index}`;
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="bg-red-900 text-red-200 text-xs font-bold px-2 py-1 rounded border border-red-700">${f.vulnerability_type}</span>
+                        <span class="text-slate-500 text-xs ml-2 mono">${f.file_path.split('\\').pop()}:${f.line_number}</span>
+                    </div>
+                    <button id="btn-${index}" class="text-xs bg-slate-700 px-3 py-1 rounded text-white transition cursor-default">Pending</button>
+                </div>
+                <p class="text-sm text-slate-300 mb-3">${f.description}</p>
+                <pre class="code-block p-3 rounded text-xs text-slate-300 mono overflow-x-auto whitespace-pre-wrap">${f.code_snippet}</pre>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    async function fixSingle(index) {
+        const finding = currentFindings[index];
+        const btn = document.getElementById(`btn-${index}`);
+        const card = document.getElementById(`card-${index}`);
+
+        try {
+            btn.innerText = "Processing...";
+            btn.classList.replace('bg-slate-700', 'bg-blue-600');
+            btn.classList.add('animate-pulse');
+            card.classList.add('active-card');
+            
+            const res = await fetch('http://localhost:5000/api/fix', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(finding)
+            });
+            const data = await res.json();
+
+            btn.classList.remove('animate-pulse');
+            card.classList.remove('active-card');
+
+            if(data.status === 'success') {
+                btn.innerText = "Fixed";
+                btn.classList.replace('bg-blue-600', 'bg-green-600');
+                card.classList.replace('card', 'fixed-card');
+                return true;
+            } else {
+                btn.innerText = "Failed";
+                btn.classList.replace('bg-blue-600', 'bg-red-600');
+                console.error(data.message);
+                return false;
+            }
+        } catch(e) {
+            console.error(e);
+            return false;
+        }
+    }
+
+    async function fixAll() {
+        if(!confirm("Start Autonomous Remediation?")) return;
+        
+        const mainBtn = document.getElementById('fixAllBtn');
+        mainBtn.disabled = true;
+        mainBtn.innerText = "Agent Running...";
+        
+        // Loop through cards sequentially based on DOM order (which matches our Sorted Array)
+        const cards = document.querySelectorAll('[id^="card-"]');
+        
+        for (let i = 0; i < cards.length; i++) {
+            const index = cards[i].id.split('-')[1];
+            updateStatus(true, `Fixing issue ${i+1} of ${cards.length}...`);
+            
+            cards[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Wait for fix to complete before moving to next
+            await fixSingle(index);
+            await delay(500); 
+        }
+        
+        updateStatus(false);
+        mainBtn.innerText = "✅ Done";
+        mainBtn.classList.replace('btn-success', 'bg-slate-700');
+        alert("Batch remediation complete. Please rescan to verify.");
+    }
     </script>
 </body>
 </html>
