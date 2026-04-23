@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register | Agentic SAST</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-md p-8 bg-slate-900 rounded-xl shadow-2xl border border-slate-800">
+        <h1 class="text-3xl font-bold text-cyan-400 mb-2 text-center">Create Account</h1>
+        <p class="text-slate-400 text-sm text-center mb-6">New Registration</p>
+        
+        <form id="regForm" onsubmit="handleRegister(event)">
+            <div class="mb-4">
+                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Username</label>
+                <input type="text" id="username" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Email Address</label>
+                <input type="email" id="email" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Occupation</label>
+                <select id="occupation" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none text-slate-200" required>
+                    <option value="" disabled selected>Select an occupation...</option>
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="engineer">Engineer</option>
+                </select>
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Password</label>
+                <input type="password" id="password" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none" required>
+            </div>
+            
+            <p id="errorMsg" class="text-red-400 text-sm mb-4 hidden"></p>
+            
+            <button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded font-bold transition text-white">Register Account</button>
+        </form>
+        <div class="mt-4 text-center">
+            <a href="/login" class="text-sm text-cyan-500 hover:underline">Already have an account? Login</a>
+        </div>
+    </div>
+
+    <script>
+        async function handleRegister(e) {
+            e.preventDefault();
+            const btn = document.querySelector('button[type="submit"]');
+            btn.innerText = "Registering...";
+            
+            const payload = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                occupation: document.getElementById('occupation').value,
+                password: document.getElementById('password').value
+            };
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    alert("Registration successful! Redirecting to login...");
+                    window.location.href = '/login';
+                } else {
+                    document.getElementById('errorMsg').innerText = data.error;
+                    document.getElementById('errorMsg').classList.remove('hidden');
+                    btn.innerText = "Register Account";
+                }
+            } catch(e) {
+                document.getElementById('errorMsg').innerText = "Network Error.";
+                document.getElementById('errorMsg').classList.remove('hidden');
+                btn.innerText = "Register Account";
+            }
+        }
+    </script>
+</body>
+</html>
