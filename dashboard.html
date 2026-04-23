@@ -2,35 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Agentic Security Framework</title>
+    <title>Agentic Security Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- ADDED: JSDiff for Git-Style Code Comparisons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
         .mono { font-family: 'JetBrains Mono', monospace; }
+        
         .card { background-color: #1e293b; border: 1px solid #334155; transition: all 0.3s ease; }
+        .card-high { background-color: #3f1616; border: 1px solid #b91c1c; box-shadow: 0 4px 6px -1px rgba(185, 28, 28, 0.2); }
+        .card-med { background-color: #3f2c16; border: 1px solid #a16207; box-shadow: 0 4px 6px -1px rgba(161, 98, 7, 0.2); }
+        .card-low { background-color: #16243f; border: 1px solid #1d4ed8; box-shadow: 0 4px 6px -1px rgba(29, 78, 216, 0.2); }
+        .fixed-card { border: 1px solid #10b981 !important; background-color: #064e3b !important; transition: all 0.5s ease; }
+        .active-card { border-color: #06b6d4 !important; box-shadow: 0 0 15px rgba(6,182,212,0.3); transform: scale(1.01); }
+        
         .btn-primary { background-color: #0891b2; color: white; }
         .btn-primary:hover { background-color: #06b6d4; }
         .btn-success { background-color: #059669; color: white; }
         .btn-success:hover { background-color: #10b981; }
         .code-block { background-color: #020617; border-left: 3px solid #f87171; }
-        .fixed-card { border-color: #10b981; background-color: #064e3b; }
-        .active-card { border-color: #06b6d4; box-shadow: 0 0 15px rgba(6,182,212,0.3); transform: scale(1.01); }
+        
+        .circle-stat { transition: transform 0.2s; }
+        .circle-stat:hover { transform: scale(1.05); cursor: pointer; }
+        .circle-high { border-color: #ef4444; color: #ef4444; }
+        .circle-med { border-color: #f59e0b; color: #f59e0b; }
+        .circle-low { border-color: #3b82f6; color: #3b82f6; }
+
+        @media print {
+            body { background: white !important; color: black !important; padding: 0 !important; }
+            .no-print { display: none !important; }
+            .card { border: 1px solid #999 !important; background: white !important; color: black !important; box-shadow: none !important; page-break-inside: avoid; }
+            .code-block { background: #f1f1f1 !important; color: black !important; border-left: 3px solid #666 !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            #findingsList { margin-top: 20px; }
+        }
     </style>
 </head>
-<body class="p-8 max-w-6xl mx-auto">
+<body class="p-8 max-w-6xl mx-auto flex flex-col min-h-screen">
 
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex justify-between items-start mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-cyan-400">Agentic Security Framework</h1>
-            <p class="text-slate-400">Autonomous Vulnerability Discovery & Remediation</p>
+            <h1 class="text-3xl font-bold text-cyan-400 print:text-black">Agentic Security Framework</h1>
+            <p class="text-slate-400 mt-1 print:text-black">Executive Vulnerability & Remediation Report</p>
         </div>
-        <div id="statusIndicator" class="hidden px-4 py-2 bg-yellow-900 text-yellow-200 rounded-full text-sm font-bold animate-pulse">
-            System Active...
+        <div class="flex flex-col items-end gap-2 no-print">
+            <div class="text-sm text-slate-400">
+                Welcome, <span id="userNameDisplay" class="text-white font-bold mr-3">Loading...</span> 
+                <button onclick="logout()" class="text-cyan-500 hover:text-cyan-400 transition font-bold">Logout ➜</button>
+            </div>
+            <div id="statusIndicator" class="hidden px-4 py-1 mt-1 bg-yellow-900 text-yellow-200 rounded-full text-xs font-bold animate-pulse">
+                System Active...
+            </div>
         </div>
     </div>
 
-    <div class="card p-6 rounded-lg shadow-xl mb-8 flex gap-4 items-center">
+    <div class="card p-6 rounded-lg shadow-xl mb-12 flex gap-4 items-center no-print">
         <div class="flex-grow">
             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Target Directory (Absolute Path)</label>
             <input type="text" id="dirPath" class="w-full p-3 rounded bg-slate-900 border border-slate-700 focus:border-cyan-500 outline-none mono text-sm" placeholder="C:/Users/Project/VulnerableApp">
@@ -40,167 +69,323 @@
         </button>
     </div>
 
-    <div id="resultsArea" class="hidden space-y-6">
-        <div class="flex justify-between items-center">
-            <h2 class="text-xl font-bold text-white">Vulnerabilities Detected: <span id="vulnCount" class="text-red-400">0</span></h2>
-            <button onclick="fixAll()" id="fixAllBtn" class="btn-success px-6 py-2 rounded font-bold shadow-lg flex items-center gap-2">
-                🛡️ Auto-Fix All Issues
+    <div id="summaryArea" class="hidden mb-12">
+        <h2 class="text-2xl font-bold text-white mb-8 text-center print:text-black">Total Vulnerabilities Found: <span id="vulnCount" class="text-cyan-400 print:text-black">0</span></h2>
+        
+        <div class="flex items-center justify-center gap-16 mb-10 w-full no-print">
+            <div class="w-48 h-48">
+                <canvas id="vulnChart"></canvas>
+            </div>
+            <div class="flex gap-8">
+                <div onclick="filterFindings('High')" class="circle-stat circle-high w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center bg-slate-900">
+                    <span id="countHigh" class="text-4xl font-bold">0</span>
+                    <span class="text-xs font-bold uppercase tracking-wide mt-1">High</span>
+                </div>
+                <div onclick="filterFindings('Medium')" class="circle-stat circle-med w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center bg-slate-900">
+                    <span id="countMed" class="text-4xl font-bold">0</span>
+                    <span class="text-xs font-bold uppercase tracking-wide mt-1">Med</span>
+                </div>
+                <div onclick="filterFindings('Low')" class="circle-stat circle-low w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center bg-slate-900">
+                    <span id="countLow" class="text-4xl font-bold">0</span>
+                    <span class="text-xs font-bold uppercase tracking-wide mt-1">Low</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center gap-6 no-print">
+            <button onclick="window.print()" class="bg-indigo-700 hover:bg-indigo-600 text-white px-6 py-3 rounded font-bold shadow-lg transition flex items-center gap-2">
+                📄 Print Report
+            </button>
+            <button onclick="showAllFindings()" class="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded font-bold shadow-lg transition">
+                👁️ View Results
+            </button>
+            <button onclick="fixAll()" id="fixAllBtn" class="btn-success px-8 py-3 rounded font-bold shadow-lg flex items-center gap-2 transition">
+                🛡️ Auto-Fix All
             </button>
         </div>
-        <div id="findingsList" class="space-y-4"></div>
+    </div>
+
+    <div id="resultsArea" class="hidden space-y-4 pb-10">
+        <h3 id="currentViewTitle" class="text-lg font-bold text-slate-400 border-b border-slate-700 pb-2 print:text-black">Viewing: Full Results</h3>
+        <div id="findingsList" class="space-y-4 mt-4"></div>
     </div>
 
     <script>
     let currentFindings = [];
+    let vulnChartInstance = null;
     const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    window.onload = async () => {
+        try {
+            const res = await fetch('/api/auth/current_user');
+            const data = await res.json();
+            if (data.username) { document.getElementById('userNameDisplay').innerText = data.username; } 
+            else { window.location.href = '/login'; }
+        } catch (e) { window.location.href = '/login'; }
+    };
+
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+    }
+
+    function getSeverity(vulnType) {
+        const t = vulnType.toLowerCase();
+        if (t.includes('command injection') || t.includes('sql')) return 'High';
+        if (t.includes('cross-site') || t.includes('xss')) return 'Medium';
+        return 'Low';
+    }
+
+    function getSeverityColor(severity) {
+        if (severity === 'High') return 'bg-red-900 text-red-200 border-red-700';
+        if (severity === 'Medium') return 'bg-yellow-900 text-yellow-200 border-yellow-700';
+        return 'bg-blue-900 text-blue-200 border-blue-700';
+    }
 
     const updateStatus = (active, msg) => {
         const el = document.getElementById('statusIndicator');
-        if (active) {
-            el.innerText = msg;
-            el.classList.remove('hidden');
-        } else {
-            el.classList.add('hidden');
-        }
+        if (active) { el.innerText = msg; el.classList.remove('hidden'); } 
+        else { el.classList.add('hidden'); }
     };
 
     async function runScan() {
         const path = document.getElementById('dirPath').value.trim();
         if(!path) return alert("Please enter a path.");
         
-        // --- FIXED: RESET THE UI STATE ON SCAN ---
         const btn = document.getElementById('fixAllBtn');
-        btn.innerText = "🛡️ Auto-Fix All Issues";
+        btn.innerText = "🛡️ Auto-Fix All";
         btn.disabled = false;
         btn.classList.replace('bg-slate-700', 'btn-success');
-        btn.classList.remove('animate-pulse');
-        // -----------------------------------------
 
         updateStatus(true, "Scanning Directory...");
         document.getElementById('findingsList').innerHTML = '';
+        document.getElementById('summaryArea').classList.add('hidden');
         document.getElementById('resultsArea').classList.add('hidden');
 
         try {
-            const res = await fetch('http://localhost:5000/api/scan', {
+            const res = await fetch('/api/scan', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({path: path})
             });
-            const findings = await res.json();
+            let findings = await res.json();
             
-            if(findings.error) {
-                alert(findings.error);
-                updateStatus(false);
-                return;
-            }
+            if(findings.error) { alert(findings.error); updateStatus(false); return; }
 
-            // --- FIXED: SORT IN PLACE BEFORE RENDERING ---
-            // Sort bottom-up so line numbers don't shift during sequential fix
+            findings = findings.map((f, i) => {
+                f.severity = getSeverity(f.vulnerability_type);
+                f.globalIndex = i; 
+                return f;
+            });
             findings.sort((a, b) => b.line_number - a.line_number);
             
             currentFindings = findings;
-            renderFindings(findings);
+            updateSummary(findings);
             updateStatus(false);
 
         } catch(e) {
-            alert("Connection Error: " + e.message);
+            alert("Connection Error.");
             updateStatus(false);
         }
     }
 
-    function renderFindings(findings) {
-        const container = document.getElementById('findingsList');
+    function updateSummary(findings) {
         document.getElementById('vulnCount').innerText = findings.length;
+        let counts = { High: 0, Medium: 0, Low: 0 };
+        findings.forEach(f => counts[f.severity]++);
+        
+        document.getElementById('countHigh').innerText = counts.High;
+        document.getElementById('countMed').innerText = counts.Medium;
+        document.getElementById('countLow').innerText = counts.Low;
+        document.getElementById('summaryArea').classList.remove('hidden');
+
+        if(vulnChartInstance) vulnChartInstance.destroy();
+        const ctx = document.getElementById('vulnChart').getContext('2d');
+        vulnChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['High', 'Medium', 'Low'],
+                datasets: [{
+                    data: [counts.High, counts.Medium, counts.Low],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+                    borderColor: '#0f172a', borderWidth: 3
+                }]
+            },
+            options: { plugins: { legend: { display: false } }, cutout: '70%' }
+        });
+    }
+
+    function filterFindings(severity) {
+        document.getElementById('currentViewTitle').innerText = `Viewing: ${severity} Severity Vulnerabilities`;
+        const filtered = currentFindings.filter(f => f.severity === severity);
+        renderFindingsCards(filtered);
         document.getElementById('resultsArea').classList.remove('hidden');
+    }
 
-        if(findings.length === 0) {
-            container.innerHTML = `<div class="p-4 bg-green-900 text-green-200 rounded">✅ No vulnerabilities found! System is secure.</div>`;
-            document.getElementById('fixAllBtn').classList.add('hidden');
-            return;
-        }
+    function showAllFindings() {
+        document.getElementById('currentViewTitle').innerText = `Viewing: Full Results (Bottom-Up)`;
+        let sorted = [...currentFindings].sort((a, b) => b.line_number - a.line_number);
+        renderFindingsCards(sorted);
+        document.getElementById('resultsArea').classList.remove('hidden');
+    }
 
-        findings.forEach((f, index) => {
+    function renderFindingsCards(findingsToRender) {
+        const container = document.getElementById('findingsList');
+        container.innerHTML = '';
+
+        findingsToRender.forEach((f) => {
             const card = document.createElement('div');
-            card.className = `card p-5 rounded-lg mb-4`;
-            card.id = `card-${index}`;
+            let cClass = f.severity === 'High' ? 'card-high' : f.severity === 'Medium' ? 'card-med' : 'card-low';
+            
+            card.className = `card p-5 rounded-lg mb-4 ${cClass}`;
+            card.id = `card-${f.globalIndex}`;
+            
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <span class="bg-red-900 text-red-200 text-xs font-bold px-2 py-1 rounded border border-red-700">${f.vulnerability_type}</span>
+                        <span class="text-xs font-bold px-2 py-1 rounded border ${getSeverityColor(f.severity)}">${f.severity.toUpperCase()}</span>
+                        <span class="bg-slate-800 text-slate-200 text-xs font-bold px-2 py-1 rounded border border-slate-600 ml-2">${f.vulnerability_type}</span>
                         <span class="text-slate-500 text-xs ml-2 mono">${f.file_path.split('\\').pop()}:${f.line_number}</span>
                     </div>
-                    <button id="btn-${index}" class="text-xs bg-slate-700 px-3 py-1 rounded text-white transition cursor-default">Pending</button>
+                    <div id="controls-${f.globalIndex}" class="no-print">
+                        <button class="text-xs bg-slate-700 px-3 py-1 rounded text-white cursor-default">Pending</button>
+                    </div>
                 </div>
-                <p class="text-sm text-slate-300 mb-3">${f.description}</p>
+                <p class="text-sm text-slate-300 mb-3 print:text-black">${f.description}</p>
+                
                 <pre class="code-block p-3 rounded text-xs text-slate-300 mono overflow-x-auto whitespace-pre-wrap">${f.code_snippet}</pre>
+                
+                <div id="diff-${f.globalIndex}" class="hidden mt-4 pt-4 border-t border-slate-600">
+                    <p class="text-xs text-slate-400 font-bold mb-2 uppercase tracking-wider print:text-black">Patch Diff (Before vs After):</p>
+                    <div id="patched-code-${f.globalIndex}" class="font-mono text-xs bg-slate-950 rounded border border-slate-700 overflow-x-auto whitespace-pre pb-2"></div>
+                </div>
             `;
             container.appendChild(card);
         });
     }
 
-    async function fixSingle(index) {
-        const finding = currentFindings[index];
-        const btn = document.getElementById(`btn-${index}`);
-        const card = document.getElementById(`card-${index}`);
+    function toggleDiff(globalIndex) {
+        const diffDiv = document.getElementById(`diff-${globalIndex}`);
+        diffDiv.classList.toggle('hidden');
+    }
+
+    // ADDED: Function to generate Git-style Diff HTML using JSDiff
+    function generateDiffHtml(oldCode, newCode) {
+        const diff = Diff.diffLines(oldCode, newCode);
+        let html = '';
+        
+        diff.forEach(part => {
+            // Remove trailing newlines to prevent empty padded blocks
+            const lines = part.value.replace(/\n$/, '').split('\n');
+            
+            lines.forEach(line => {
+                // Escape HTML to prevent code rendering as HTML elements
+                const escapedLine = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                
+                if (part.added) {
+                    html += `<div class="bg-green-900/40 text-green-300 px-3 py-0.5 border-l-2 border-green-500 w-full">+ ${escapedLine}</div>`;
+                } else if (part.removed) {
+                    html += `<div class="bg-red-900/40 text-red-300 px-3 py-0.5 border-l-2 border-red-500 line-through opacity-80 w-full">- ${escapedLine}</div>`;
+                } else {
+                    html += `<div class="text-slate-400 px-3 py-0.5 border-l-2 border-transparent w-full">  ${escapedLine}</div>`;
+                }
+            });
+        });
+        return html;
+    }
+
+    async function rollbackSingle(globalIndex) {
+        if(!confirm("Are you sure you want to revert this patch to its original vulnerable state?")) return;
+        const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+        
+        try {
+            updateStatus(true, "Restoring specific function...");
+            const res = await fetch('/api/rollback', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    file_path: finding.file_path,
+                    func_name: finding.func_name,
+                    original_code: finding.full_original_code
+                })
+            });
+            const data = await res.json();
+            
+            if(data.status === 'success') {
+                alert("Surgical rollback successful. Refreshing analysis...");
+                await runScan(); 
+            } else {
+                alert("Rollback failed: " + data.message);
+                updateStatus(false);
+            }
+        } catch(e) {
+            alert("Network Error during rollback.");
+            updateStatus(false);
+        }
+    }
+
+    async function fixSingle(globalIndex) {
+        const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+        const controls = document.getElementById(`controls-${globalIndex}`);
+        const card = document.getElementById(`card-${globalIndex}`);
+        if(!finding || !controls || !card) return true;
 
         try {
-            btn.innerText = "Processing...";
-            btn.classList.replace('bg-slate-700', 'bg-blue-600');
-            btn.classList.add('animate-pulse');
+            controls.innerHTML = `<span class="text-xs bg-blue-600 px-3 py-1 rounded text-white animate-pulse">Processing...</span>`;
             card.classList.add('active-card');
             
-            const res = await fetch('http://localhost:5000/api/fix', {
+            const res = await fetch('/api/fix', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(finding)
             });
             const data = await res.json();
-
-            btn.classList.remove('animate-pulse');
             card.classList.remove('active-card');
 
             if(data.status === 'success') {
-                btn.innerText = "Fixed";
-                btn.classList.replace('bg-blue-600', 'bg-green-600');
-                card.classList.replace('card', 'fixed-card');
+                finding.full_original_code = data.original_code;
+                finding.func_name = data.function;
+
+                controls.innerHTML = `
+                    <button onclick="toggleDiff(${globalIndex})" class="text-xs bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-white font-bold transition mr-1">🔍 Diff</button>
+                    <button onclick="rollbackSingle(${globalIndex})" class="text-xs bg-yellow-600 hover:bg-yellow-500 px-3 py-1 rounded text-white font-bold transition mr-3">↩️ Undo</button>
+                    <span class="text-xs bg-green-600 px-3 py-1 rounded text-white font-bold">✅ Fixed</span>
+                `;
+                
+                // INJECT THE HIGHLIGHTED DIFF HTML INSTEAD OF RAW TEXT
+                const diffHtml = generateDiffHtml(data.original_code, data.new_code);
+                document.getElementById(`patched-code-${globalIndex}`).innerHTML = diffHtml;
+                
+                card.classList.remove('card-high', 'card-med', 'card-low', 'card');
+                card.classList.add('fixed-card');
                 return true;
             } else {
-                btn.innerText = "Failed";
-                btn.classList.replace('bg-blue-600', 'bg-red-600');
-                console.error(data.message);
+                controls.innerHTML = `<span class="text-xs bg-red-600 px-3 py-1 rounded text-white">Failed</span>`;
                 return false;
             }
-        } catch(e) {
-            console.error(e);
-            return false;
-        }
+        } catch(e) { return false; }
     }
 
     async function fixAll() {
         if(!confirm("Start Autonomous Remediation?")) return;
-        
+        showAllFindings();
         const mainBtn = document.getElementById('fixAllBtn');
         mainBtn.disabled = true;
         mainBtn.innerText = "Agent Running...";
         
-        // Loop through cards sequentially based on DOM order (which matches our Sorted Array)
-        const cards = document.querySelectorAll('[id^="card-"]');
-        
-        for (let i = 0; i < cards.length; i++) {
-            const index = cards[i].id.split('-')[1];
-            updateStatus(true, `Fixing issue ${i+1} of ${cards.length}...`);
+        for (let i = 0; i < currentFindings.length; i++) {
+            const index = currentFindings[i].globalIndex;
+            updateStatus(true, `Fixing issue ${i+1} of ${currentFindings.length}...`);
+            const card = document.getElementById(`card-${index}`);
+            if(card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            cards[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Wait for fix to complete before moving to next
             await fixSingle(index);
             await delay(500); 
         }
-        
         updateStatus(false);
         mainBtn.innerText = "✅ Done";
         mainBtn.classList.replace('btn-success', 'bg-slate-700');
-        alert("Batch remediation complete. Please rescan to verify.");
+        alert("Batch remediation complete. You can now View Diffs or Print the PDF Report.");
     }
     </script>
 </body>
