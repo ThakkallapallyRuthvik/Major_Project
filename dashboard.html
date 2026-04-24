@@ -540,6 +540,16 @@
                 </div>
             </div>
 
+            <!-- Preview Toggle -->
+            <div class="flex items-center justify-center gap-4 mb-5 no-print" id="previewToggleContainer" style="display: none;">
+                <span class="mode-label">Fix Behavior</span>
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="previewToggle" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 relative"></div>
+                    <span class="ml-3 text-sm font-medium text-slate-300">Preview before write</span>
+                </label>
+            </div>
+
             <div class="flex justify-center gap-4 no-print">
                 <button onclick="window.print()"
                     class="bg-indigo-600/70 hover:bg-indigo-500/80 border border-indigo-400/20 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg transition flex items-center gap-2">
@@ -580,6 +590,12 @@
             // Show/hide the Auto-Fix All button
             const fixAllBtn = document.getElementById('fixAllBtn');
             fixAllBtn.style.display = mode === 'auto' ? 'flex' : 'none';
+
+            // Show/hide preview toggle container
+            const previewToggleContainer = document.getElementById('previewToggleContainer');
+            if (previewToggleContainer) {
+                previewToggleContainer.style.display = mode === 'manual' ? 'flex' : 'none';
+            }
 
             // Re-render cards if results are visible to add/remove individual Fix buttons
             const resultsArea = document.getElementById('resultsArea');
@@ -767,7 +783,10 @@
                 <div id="confidence-${f.globalIndex}" class="hidden mt-3"></div>
 
                 <div id="diff-${f.globalIndex}" class="hidden mt-4 pt-4 border-t border-white/10">
-                    <p class="text-xs text-slate-400 font-bold mb-2 uppercase tracking-wider print:text-black">Patch Diff (Before vs After):</p>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider print:text-black">Patch Diff (Before vs After):</p>
+                        <button onclick="toggleDiffView(${f.globalIndex})" class="text-xs text-cyan-400 hover:text-cyan-300 font-semibold transition px-3 py-1 bg-cyan-900/20 rounded-lg border border-cyan-500/20 no-print">🔁 Toggle View</button>
+                    </div>
                     <div id="patched-code-${f.globalIndex}" class="font-mono text-xs bg-slate-950/80 rounded-xl border border-slate-700/50 overflow-x-auto whitespace-pre pb-2"></div>
                 </div>
             `;
@@ -778,6 +797,41 @@
         function toggleDiff(globalIndex) {
             const diffDiv = document.getElementById(`diff-${globalIndex}`);
             diffDiv.classList.toggle('hidden');
+        }
+
+        function generateSideBySideHtml(oldCode, newCode) {
+            const escapeHtml = (unsafe) => unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return `
+            <div class="flex flex-col md:flex-row gap-4 w-full p-2">
+                <div class="flex-1 bg-slate-900/50 rounded-lg overflow-x-auto border border-slate-700/50 relative">
+                    <div class="bg-slate-800 text-slate-400 px-3 py-1.5 text-[10px] font-bold uppercase border-b border-slate-700/50 sticky top-0 left-0 z-10 w-full min-w-max">Original (Vulnerable)</div>
+                    <div class="p-3 text-slate-300 whitespace-pre">${escapeHtml(oldCode)}</div>
+                </div>
+                <div class="flex-1 bg-slate-900/50 rounded-lg overflow-x-auto border border-slate-700/50 relative">
+                    <div class="bg-slate-800 text-slate-400 px-3 py-1.5 text-[10px] font-bold uppercase border-b border-slate-700/50 sticky top-0 left-0 z-10 w-full min-w-max">Patched (Secure)</div>
+                    <div class="p-3 text-slate-300 whitespace-pre">${escapeHtml(newCode)}</div>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderDiffContainer(globalIndex) {
+            const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+            if (!finding) return;
+            const container = document.getElementById(`patched-code-${globalIndex}`);
+            finding.diffViewMode = finding.diffViewMode || 'unified';
+            if (finding.diffViewMode === 'sbs') {
+                container.innerHTML = generateSideBySideHtml(finding.full_original_code, finding.new_code);
+            } else {
+                container.innerHTML = generateDiffHtml(finding.full_original_code, finding.new_code);
+            }
+        }
+
+        function toggleDiffView(globalIndex) {
+            const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+            if (!finding) return;
+            finding.diffViewMode = finding.diffViewMode === 'sbs' ? 'unified' : 'sbs';
+            renderDiffContainer(globalIndex);
         }
 
         function generateDiffHtml(oldCode, newCode) {
@@ -890,14 +944,18 @@
             const card = document.getElementById(`card-${globalIndex}`);
             if (!finding || !controls || !card) return true;
 
+            const isPreview = currentMode === 'manual' && document.getElementById('previewToggle')?.checked;
+
             try {
                 controls.innerHTML = `<span class="text-xs bg-blue-600/70 border border-blue-400/20 px-3 py-1.5 rounded-lg text-white animate-pulse">Processing...</span>`;
                 card.classList.add('active-card');
 
+                const payload = { ...finding, preview_only: isPreview };
+
                 const res = await fetch('/api/fix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finding)
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 card.classList.remove('active-card');
@@ -905,26 +963,87 @@
                 if (data.status === 'success') {
                     finding.full_original_code = data.original_code;
                     finding.func_name = data.function;
+                    finding.new_code = data.new_code;
 
-                    controls.innerHTML = `
-                    <button onclick="toggleDiff(${globalIndex})" class="text-xs bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">🔍 Diff</button>
-                    <button onclick="rollbackSingle(${globalIndex})" class="text-xs bg-yellow-600/80 hover:bg-yellow-500 border border-yellow-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">↩️ Undo</button>
-                    <span class="text-xs bg-green-600/80 border border-green-400/20 px-3 py-1.5 rounded-lg text-white font-semibold">✅ Fixed</span>
-                `;
+                    if (data.preview) {
+                        controls.innerHTML = `
+                            <button onclick="approveFix(${globalIndex})" class="text-xs bg-green-600/80 hover:bg-green-500 border border-green-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">✅ Approve</button>
+                            <button onclick="rejectFix(${globalIndex})" class="text-xs bg-red-600/80 hover:bg-red-500 border border-red-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">❌ Reject</button>
+                        `;
+                        renderDiffContainer(globalIndex);
+                        document.getElementById(`diff-${globalIndex}`).classList.remove('hidden');
+                        renderConfidenceBadge(globalIndex, data.confidence, data.confidence_reasoning);
+                        return true;
+                    } else {
+                        controls.innerHTML = `
+                            <button onclick="toggleDiff(${globalIndex})" class="text-xs bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">🔍 Diff</button>
+                            <button onclick="rollbackSingle(${globalIndex})" class="text-xs bg-yellow-600/80 hover:bg-yellow-500 border border-yellow-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">↩️ Undo</button>
+                            <span class="text-xs bg-green-600/80 border border-green-400/20 px-3 py-1.5 rounded-lg text-white font-semibold">✅ Fixed</span>
+                        `;
 
-                    const diffHtml = generateDiffHtml(data.original_code, data.new_code);
-                    document.getElementById(`patched-code-${globalIndex}`).innerHTML = diffHtml;
+                        renderDiffContainer(globalIndex);
 
-                    renderConfidenceBadge(globalIndex, data.confidence, data.confidence_reasoning);
+                        renderConfidenceBadge(globalIndex, data.confidence, data.confidence_reasoning);
 
-                    card.classList.remove('card-high', 'card-med', 'card-low', 'card');
-                    card.classList.add('fixed-card');
-                    return true;
+                        card.classList.remove('card-high', 'card-med', 'card-low', 'card');
+                        card.classList.add('fixed-card');
+                        return true;
+                    }
                 } else {
                     controls.innerHTML = `<span class="text-xs bg-red-600/80 border border-red-400/20 px-3 py-1.5 rounded-lg text-white">Failed</span>`;
                     return false;
                 }
             } catch (e) { return false; }
+        }
+
+        async function approveFix(globalIndex) {
+            const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+            const controls = document.getElementById(`controls-${globalIndex}`);
+            const card = document.getElementById(`card-${globalIndex}`);
+
+            try {
+                updateStatus(true, "Applying approved patch...");
+                const res = await fetch('/api/apply_patch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: finding.file_path,
+                        func_name: finding.func_name,
+                        new_code: finding.new_code
+                    })
+                });
+                const data = await res.json();
+                updateStatus(false);
+
+                if (data.status === 'success') {
+                    showToast('Patch applied successfully.', 'success');
+                    controls.innerHTML = `
+                        <button onclick="toggleDiff(${globalIndex})" class="text-xs bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">🔍 Diff</button>
+                        <button onclick="rollbackSingle(${globalIndex})" class="text-xs bg-yellow-600/80 hover:bg-yellow-500 border border-yellow-400/20 px-3 py-1.5 rounded-lg text-white font-semibold transition">↩️ Undo</button>
+                        <span class="text-xs bg-green-600/80 border border-green-400/20 px-3 py-1.5 rounded-lg text-white font-semibold">✅ Fixed</span>
+                    `;
+                    card.classList.remove('card-high', 'card-med', 'card-low', 'card');
+                    card.classList.add('fixed-card');
+                } else {
+                    showToast('Failed to apply patch: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showToast('Network error while applying patch.', 'error');
+                updateStatus(false);
+            }
+        }
+
+        function rejectFix(globalIndex) {
+            const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+            const controls = document.getElementById(`controls-${globalIndex}`);
+
+            document.getElementById(`diff-${globalIndex}`).classList.add('hidden');
+            
+            controls.innerHTML = `
+                <button onclick="explainVuln(${globalIndex})" class="text-xs bg-indigo-700/80 hover:bg-indigo-600 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-white font-semibold transition">🤖 Explain</button>
+                <button onclick="fixSingle(${globalIndex})" class="text-xs btn-success border border-emerald-400/30 px-3 py-1.5 rounded-lg text-white font-semibold transition">🔧 Fix</button>
+            `;
+            showToast('Patch rejected.', 'info');
         }
 
         async function fixAll() {

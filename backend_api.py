@@ -209,6 +209,7 @@ def fix_vulnerability():
     data = request.json
     file_path = data.get('file_path')
     line_number = data.get('line_number')
+    preview_only = data.get('preview_only', False)
     
     with file_lock:
         # 1. EXTRACT THE FULL ORIGINAL FUNCTION
@@ -247,6 +248,17 @@ def fix_vulnerability():
                 confidence_score = -1
                 confidence_reasoning = "Confidence evaluation unavailable"
 
+            if preview_only:
+                return jsonify({
+                    "status": "success", 
+                    "function": func_name, 
+                    "new_code": cleaned_code,
+                    "original_code": original_func_code,
+                    "confidence": confidence_score,
+                    "confidence_reasoning": confidence_reasoning,
+                    "preview": True
+                })
+
             # 3. APPLY PATCH
             if apply_patch_to_file(file_path, func_name, cleaned_code):
                 # 4. RETURN FULL ORIGINAL FUNCTION FOR SURGICAL ROLLBACK
@@ -261,6 +273,17 @@ def fix_vulnerability():
             return jsonify({"status": "error", "message": "File write failed"}), 500
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/apply_patch', methods=['POST'])
+def apply_patch_endpoint():
+    if 'user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    data = request.json
+    
+    with file_lock:
+        success = apply_patch_to_file(data.get('file_path'), data.get('func_name'), data.get('new_code'))
+        if success:
+            return jsonify({"status": "success"})
+        return jsonify({"status": "error", "message": "Patch apply failed"}), 500
 
 @app.route('/api/rollback', methods=['POST'])
 def rollback_vulnerability():
