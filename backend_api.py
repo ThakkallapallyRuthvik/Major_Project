@@ -37,6 +37,7 @@ def init_framework_db():
 init_framework_db()
 
 # --- GROQ CONFIGURATION ---
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or "API_KEY"
 try:
     if "gsk_" not in GROQ_API_KEY:
         llm = None
