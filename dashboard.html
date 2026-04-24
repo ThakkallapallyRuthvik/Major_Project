@@ -31,6 +31,15 @@
         .circle-med { border-color: #f59e0b; color: #f59e0b; }
         .circle-low { border-color: #3b82f6; color: #3b82f6; }
 
+        .ai-explain-box { background: linear-gradient(135deg, #1e1b4b 0%, #1e293b 100%); border: 1px solid #6366f1; border-radius: 0.5rem; padding: 1rem; margin-top: 0.75rem; }
+        .ai-explain-box .ai-label { color: #a5b4fc; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+        .ai-explain-box .ai-text { color: #cbd5e1; font-size: 0.8rem; line-height: 1.5; }
+
+        .confidence-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 9999px; cursor: help; }
+        .confidence-high { background-color: #064e3b; color: #34d399; border: 1px solid #10b981; }
+        .confidence-med { background-color: #451a03; color: #fbbf24; border: 1px solid #f59e0b; }
+        .confidence-low { background-color: #450a0a; color: #f87171; border: 1px solid #ef4444; }
+
         @media print {
             body { background: white !important; color: black !important; padding: 0 !important; }
             .no-print { display: none !important; }
@@ -247,13 +256,18 @@
                         <span class="bg-slate-800 text-slate-200 text-xs font-bold px-2 py-1 rounded border border-slate-600 ml-2">${f.vulnerability_type}</span>
                         <span class="text-slate-500 text-xs ml-2 mono">${f.file_path.split('\\').pop()}:${f.line_number}</span>
                     </div>
-                    <div id="controls-${f.globalIndex}" class="no-print">
+                    <div id="controls-${f.globalIndex}" class="no-print flex items-center gap-2">
+                        <button onclick="explainVuln(${f.globalIndex})" class="text-xs bg-indigo-700 hover:bg-indigo-600 px-3 py-1 rounded text-white font-bold transition">🤖 AI Explain</button>
                         <button class="text-xs bg-slate-700 px-3 py-1 rounded text-white cursor-default">Pending</button>
                     </div>
                 </div>
                 <p class="text-sm text-slate-300 mb-3 print:text-black">${f.description}</p>
                 
+                <div id="explain-${f.globalIndex}" class="hidden"></div>
+                
                 <pre class="code-block p-3 rounded text-xs text-slate-300 mono overflow-x-auto whitespace-pre-wrap">${f.code_snippet}</pre>
+                
+                <div id="confidence-${f.globalIndex}" class="hidden mt-3"></div>
                 
                 <div id="diff-${f.globalIndex}" class="hidden mt-4 pt-4 border-t border-slate-600">
                     <p class="text-xs text-slate-400 font-bold mb-2 uppercase tracking-wider print:text-black">Patch Diff (Before vs After):</p>
@@ -324,6 +338,59 @@
         }
     }
 
+    async function explainVuln(globalIndex) {
+        const finding = currentFindings.find(f => f.globalIndex === globalIndex);
+        if (!finding) return;
+        const explainDiv = document.getElementById(`explain-${globalIndex}`);
+        
+        // Toggle if already loaded
+        if (explainDiv.dataset.loaded === 'true') {
+            explainDiv.classList.toggle('hidden');
+            return;
+        }
+        
+        explainDiv.innerHTML = `<div class="ai-explain-box"><div class="ai-label">🤖 AI Analyzing...</div><div class="ai-text animate-pulse">Generating vulnerability explanation...</div></div>`;
+        explainDiv.classList.remove('hidden');
+        
+        try {
+            const res = await fetch('/api/explain', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    vulnerability_type: finding.vulnerability_type,
+                    code_snippet: finding.code_snippet
+                })
+            });
+            const data = await res.json();
+            if (data.explanation) {
+                explainDiv.innerHTML = `<div class="ai-explain-box"><div class="ai-label">🤖 AI Vulnerability Analysis</div><div class="ai-text">${data.explanation}</div></div>`;
+                explainDiv.dataset.loaded = 'true';
+            } else {
+                explainDiv.innerHTML = `<div class="ai-explain-box"><div class="ai-label">🤖 AI Analysis</div><div class="ai-text text-red-400">Failed: ${data.error || 'Unknown error'}</div></div>`;
+            }
+        } catch (e) {
+            explainDiv.innerHTML = `<div class="ai-explain-box"><div class="ai-label">🤖 AI Analysis</div><div class="ai-text text-red-400">Network error.</div></div>`;
+        }
+    }
+
+    function renderConfidenceBadge(globalIndex, confidence, reasoning) {
+        const confDiv = document.getElementById(`confidence-${globalIndex}`);
+        if (!confDiv || confidence < 0) return;
+        
+        let badgeClass, icon;
+        if (confidence >= 80) { badgeClass = 'confidence-high'; icon = '🟢'; }
+        else if (confidence >= 50) { badgeClass = 'confidence-med'; icon = '🟡'; }
+        else { badgeClass = 'confidence-low'; icon = '🔴'; }
+        
+        confDiv.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="confidence-badge ${badgeClass}" title="${reasoning}">${icon} AI Confidence: ${confidence}%</span>
+                <span class="text-xs text-slate-500 italic">${reasoning}</span>
+            </div>
+        `;
+        confDiv.classList.remove('hidden');
+    }
+
     async function fixSingle(globalIndex) {
         const finding = currentFindings.find(f => f.globalIndex === globalIndex);
         const controls = document.getElementById(`controls-${globalIndex}`);
@@ -355,6 +422,9 @@
                 // INJECT THE HIGHLIGHTED DIFF HTML INSTEAD OF RAW TEXT
                 const diffHtml = generateDiffHtml(data.original_code, data.new_code);
                 document.getElementById(`patched-code-${globalIndex}`).innerHTML = diffHtml;
+                
+                // RENDER CONFIDENCE BADGE
+                renderConfidenceBadge(globalIndex, data.confidence, data.confidence_reasoning);
                 
                 card.classList.remove('card-high', 'card-med', 'card-low', 'card');
                 card.classList.add('fixed-card');

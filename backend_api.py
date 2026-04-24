@@ -37,7 +37,7 @@ def init_framework_db():
 init_framework_db()
 
 # --- GROQ CONFIGURATION ---
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or "YOUR_API_KEY_HERE"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or "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"
 try:
     if "gsk_" not in GROQ_API_KEY:
         llm = None
@@ -59,6 +59,23 @@ REMEDIATION_SYSTEM_PROMPT = (
     "3. APP CONFIG: If modifying `app.run`, ALWAYS set `use_reloader=False` and `debug=False`.\n"
     "4. SQL INJECTION: Use parameterized queries (e.g. `execute(query, (param,))`).\n"
     "5. IMPORTS: Put all imports (re, subprocess, render_template_string, sqlite3) INSIDE the function body."
+)
+
+# --- AI EXPLANATION PROMPT ---
+EXPLAIN_PROMPT = (
+    "You are a cybersecurity educator. Given a vulnerability type and code snippet, "
+    "explain in 3-4 sentences: (1) what the vulnerability is, (2) how an attacker "
+    "could exploit it with a concrete example, (3) the potential impact on the system. "
+    "Be concise, technical, and use real-world terminology. Do NOT include code fixes."
+)
+
+# --- AI CONFIDENCE SCORING PROMPT ---
+CONFIDENCE_PROMPT = (
+    "You are a code review agent. Given the original vulnerable code, the vulnerability type, "
+    "and the proposed fix, assess your confidence (0-100) that the fix: "
+    "(1) fully resolves the vulnerability, (2) does not break existing functionality, "
+    "(3) follows secure coding best practices.\n"
+    "Respond in ONLY valid JSON with no other text: {\"confidence\": <integer 0-100>, \"reasoning\": \"<one sentence>\"}"
 )
 
 def clean_llm_response(text):
@@ -168,6 +185,23 @@ def scan_directory():
     findings_json = run_and_parse_sast(path)
     return jsonify(json.loads(findings_json))
 
+@app.route('/api/explain', methods=['POST'])
+def explain_vulnerability():
+    if 'user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not llm: return jsonify({"error": "LLM not available"}), 500
+    data = request.json
+    vuln_type = data.get('vulnerability_type', 'Unknown')
+    code_snippet = data.get('code_snippet', '')
+    try:
+        messages = [
+            SystemMessage(content=EXPLAIN_PROMPT),
+            HumanMessage(content=f"Vulnerability: {vuln_type}\nCode:\n{code_snippet}")
+        ]
+        response = llm.invoke(messages)
+        return jsonify({"explanation": response.content.strip()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/fix', methods=['POST'])
 def fix_vulnerability():
     if 'user' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -191,14 +225,37 @@ def fix_vulnerability():
             if not validate_syntax(cleaned_code):
                 return jsonify({"status": "error", "message": "AI syntax invalid"}), 500
 
-            # 2. APPLY PATCH
+            # 2. AI CONFIDENCE SCORING
+            confidence_score = -1
+            confidence_reasoning = ""
+            try:
+                conf_messages = [
+                    SystemMessage(content=CONFIDENCE_PROMPT),
+                    HumanMessage(content=(
+                        f"Vulnerability: {data.get('vulnerability_type')}\n"
+                        f"Original Code:\n{original_func_code}\n\n"
+                        f"Proposed Fix:\n{cleaned_code}"
+                    ))
+                ]
+                conf_response = llm.invoke(conf_messages)
+                conf_text = clean_llm_response(conf_response.content)
+                conf_data = json.loads(conf_text)
+                confidence_score = int(conf_data.get("confidence", -1))
+                confidence_reasoning = conf_data.get("reasoning", "")
+            except Exception:
+                confidence_score = -1
+                confidence_reasoning = "Confidence evaluation unavailable"
+
+            # 3. APPLY PATCH
             if apply_patch_to_file(file_path, func_name, cleaned_code):
-                # 3. RETURN FULL ORIGINAL FUNCTION FOR SURGICAL ROLLBACK
+                # 4. RETURN FULL ORIGINAL FUNCTION FOR SURGICAL ROLLBACK
                 return jsonify({
                     "status": "success", 
                     "function": func_name, 
                     "new_code": cleaned_code,
-                    "original_code": original_func_code 
+                    "original_code": original_func_code,
+                    "confidence": confidence_score,
+                    "confidence_reasoning": confidence_reasoning
                 })
             return jsonify({"status": "error", "message": "File write failed"}), 500
         except Exception as e:
