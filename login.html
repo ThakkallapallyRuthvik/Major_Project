@@ -4,37 +4,149 @@
     <meta charset="UTF-8">
     <title>Login | Agentic SAST</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }</style>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(-45deg, #0f172a, #1e1b4b, #020617, #172554);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            color: #e2e8f0;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .glass-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #22d3ee;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
+        }
+
+        .glow-btn {
+            background: linear-gradient(135deg, #0891b2 0%, #0284c7 100%);
+            transition: all 0.3s ease;
+        }
+
+        .glow-btn:hover {
+            box-shadow: 0 0 20px rgba(8, 145, 178, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* Toast System */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            min-width: 250px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transform: translateX(120%);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast-error {
+            background: rgba(153, 27, 27, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+    </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
-    <div class="w-full max-w-md p-8 bg-slate-900 rounded-xl shadow-2xl border border-slate-800">
+<body class="flex items-center justify-center">
+
+    <div id="toast-container"></div>
+
+    <div class="w-full max-w-md p-8 rounded-2xl glass-card mx-4">
+        <div class="flex justify-center mb-4">
+            <div class="w-16 h-16 rounded-full bg-cyan-900/50 flex items-center justify-center border border-cyan-500/30">
+                <span class="text-3xl">🛡️</span>
+            </div>
+        </div>
         <h1 class="text-3xl font-bold text-cyan-400 mb-2 text-center">Agentic SAST</h1>
-        <p class="text-slate-400 text-sm text-center mb-6">Enter your credentials to login</p>
+        <p class="text-slate-400 text-sm text-center mb-8">Secure your codebase with autonomous agents.</p>
         
         <form id="loginForm" onsubmit="handleLogin(event)">
-            <div class="mb-4">
-                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Username</label>
-                <input type="text" id="username" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none" required>
+            <div class="mb-5">
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Username</label>
+                <input type="text" id="username" class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none" placeholder="Enter your username" required>
             </div>
-            <div class="mb-6">
-                <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wider">Password</label>
-                <input type="password" id="password" class="w-full p-3 rounded bg-slate-800 border border-slate-700 focus:border-cyan-500 outline-none" required>
+            <div class="mb-8">
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Password</label>
+                <input type="password" id="password" class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none" placeholder="••••••••" required>
             </div>
             
-            <p id="errorMsg" class="text-red-400 text-sm mb-4 hidden"></p>
-            
-            <button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded font-bold transition text-white">Login</button>
+            <button type="submit" class="w-full py-3.5 rounded-lg font-bold text-white glow-btn relative overflow-hidden">
+                <span id="btnText">Login to Dashboard</span>
+            </button>
         </form>
-        <div class="mt-4 text-center">
-            <a href="/register" class="text-sm text-cyan-500 hover:underline">Create an Account</a>
+        <div class="mt-6 text-center">
+            <span class="text-sm text-slate-500">Don't have an account? </span>
+            <a href="/register" class="text-sm text-cyan-400 hover:text-cyan-300 font-semibold transition hover:underline">Register</a>
         </div>
     </div>
 
     <script>
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>⚠️</span> ${message}`;
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        }
+
         async function handleLogin(e) {
             e.preventDefault();
-            const btn = document.querySelector('button[type="submit"]');
-            btn.innerText = "Authenticating...";
+            const btnText = document.getElementById('btnText');
+            const originalText = btnText.innerText;
+            btnText.innerText = "Authenticating...";
             
             const payload = {
                 username: document.getElementById('username').value,
@@ -50,16 +162,15 @@
                 const data = await res.json();
                 
                 if (data.status === 'success') {
-                    window.location.href = '/dashboard';
+                    btnText.innerText = "Success! Redirecting...";
+                    setTimeout(() => window.location.href = '/dashboard', 500);
                 } else {
-                    document.getElementById('errorMsg').innerText = data.error || "Login Failed";
-                    document.getElementById('errorMsg').classList.remove('hidden');
-                    btn.innerText = "Login to Dashboard";
+                    showToast(data.error || "Login Failed");
+                    btnText.innerText = originalText;
                 }
             } catch(e) {
-                document.getElementById('errorMsg').innerText = "Network Error.";
-                document.getElementById('errorMsg').classList.remove('hidden');
-                btn.innerText = "Login to Dashboard";
+                showToast("Network Error.");
+                btnText.innerText = originalText;
             }
         }
     </script>

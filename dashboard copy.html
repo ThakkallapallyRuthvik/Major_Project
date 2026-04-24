@@ -59,48 +59,24 @@
         }
 
         .card-high {
-            background: linear-gradient(145deg, rgba(63, 22, 22, 0.7) 0%, rgba(30, 10, 10, 0.8) 100%);
-            backdrop-filter: blur(16px);
+            background: rgba(63, 22, 22, 0.6);
+            backdrop-filter: blur(12px);
             border: 1px solid #b91c1c;
-            border-left: 4px solid #ef4444;
-            box-shadow: 0 8px 32px -4px rgba(185, 28, 28, 0.35);
-            transform: translateY(0);
-        }
-
-        .card-high:hover {
-            box-shadow: 0 12px 40px -4px rgba(239, 68, 68, 0.45);
-            transform: translateY(-2px);
-            border-color: #ef4444;
+            box-shadow: 0 4px 20px -4px rgba(185, 28, 28, 0.3);
         }
 
         .card-med {
-            background: linear-gradient(145deg, rgba(63, 44, 22, 0.7) 0%, rgba(30, 20, 10, 0.8) 100%);
-            backdrop-filter: blur(16px);
+            background: rgba(63, 44, 22, 0.6);
+            backdrop-filter: blur(12px);
             border: 1px solid #a16207;
-            border-left: 4px solid #f59e0b;
-            box-shadow: 0 8px 32px -4px rgba(161, 98, 7, 0.35);
-            transform: translateY(0);
-        }
-
-        .card-med:hover {
-            box-shadow: 0 12px 40px -4px rgba(245, 158, 11, 0.45);
-            transform: translateY(-2px);
-            border-color: #f59e0b;
+            box-shadow: 0 4px 20px -4px rgba(161, 98, 7, 0.3);
         }
 
         .card-low {
-            background: linear-gradient(145deg, rgba(22, 36, 63, 0.7) 0%, rgba(10, 15, 30, 0.8) 100%);
-            backdrop-filter: blur(16px);
+            background: rgba(22, 36, 63, 0.6);
+            backdrop-filter: blur(12px);
             border: 1px solid #1d4ed8;
-            border-left: 4px solid #3b82f6;
-            box-shadow: 0 8px 32px -4px rgba(29, 78, 216, 0.35);
-            transform: translateY(0);
-        }
-
-        .card-low:hover {
-            box-shadow: 0 12px 40px -4px rgba(59, 130, 246, 0.45);
-            transform: translateY(-2px);
-            border-color: #3b82f6;
+            box-shadow: 0 4px 20px -4px rgba(29, 78, 216, 0.3);
         }
 
         .fixed-card {
@@ -269,70 +245,43 @@
         }
 
         .toast {
-            min-width: 300px;
-            padding: 16px 20px;
-            border-radius: 12px;
+            min-width: 260px;
+            padding: 12px 20px;
+            border-radius: 10px;
             color: white;
             font-size: 0.875rem;
             font-weight: 600;
-            transform: translateX(120%) scale(0.9);
+            transform: translateX(120%);
             opacity: 0;
             transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             display: flex;
             align-items: center;
-            gap: 12px;
-            box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.5);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .toast::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 4px;
-            width: 100%;
-            background: rgba(255, 255, 255, 0.7);
-            animation: toastProgress 3.5s linear forwards;
-        }
-
-        @keyframes toastProgress {
-            from { width: 100%; }
-            to { width: 0%; }
+            gap: 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
         }
 
         .toast.show {
-            transform: translateX(0) scale(1);
+            transform: translateX(0);
             opacity: 1;
         }
 
         .toast-error {
-            background: rgba(153, 27, 27, 0.9);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(248, 113, 113, 0.4);
-            box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
+            background: rgba(153, 27, 27, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(248, 113, 113, 0.3);
         }
-        
-        .toast-error::after { background: #fca5a5; }
 
         .toast-success {
-            background: rgba(6, 78, 59, 0.9);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(52, 211, 153, 0.4);
-            box-shadow: 0 0 20px rgba(5, 150, 105, 0.4);
+            background: rgba(6, 78, 59, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(52, 211, 153, 0.3);
         }
-        
-        .toast-success::after { background: #6ee7b7; }
 
         .toast-info {
-            background: rgba(8, 100, 140, 0.9);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(34, 211, 238, 0.4);
-            box-shadow: 0 0 20px rgba(8, 145, 178, 0.4);
+            background: rgba(8, 100, 140, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(34, 211, 238, 0.3);
         }
-        
-        .toast-info::after { background: #67e8f9; }
 
         /* ── Status indicator ── */
         #statusIndicator {

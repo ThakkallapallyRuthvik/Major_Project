@@ -23,37 +23,41 @@ init_db()
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    """SECURE: SQL Injection in Login Fixed"""
+    """SECURE CODE: SQL Injection in Login fixed"""
     error = None
     if request.method == 'POST':
         # Import necessary modules inside the function body
         import sqlite3
-        from flask import redirect, url_for, session, request
-        from flask import render_template_string
+        from flask import render_template_string, redirect, url_for, session, request
 
+        # Get username and password from the form
         username = request.form['username']
         password = request.form['password']
 
         # Use parameterized query to prevent SQL Injection
         query = "SELECT * FROM users WHERE username = ? AND password = ?"
 
+        # Connect to the database
         conn = sqlite3.connect('users.db')
         c = conn.cursor()
         try:
-            # Execute the query with parameters
+            # Execute query with parameters
             c.execute(query, (username, password))
             user = c.fetchone()
             conn.close()
 
+            # Check if the user exists
             if user:
+                # Store the username in the session
                 session['user'] = user[1]
                 return redirect(url_for('dashboard'))
             else:
                 error = "Invalid Credentials"
         except Exception as e:
+            # Handle any exceptions
             error = str(e)
 
-    # Use render_template_string with named arguments
+    # Simple Login Page HTML
     return render_template_string('''
         <html>
         <head><title>SysAdmin Login</title></head>
@@ -106,11 +110,11 @@ def ping():
 
     ip = request.form.get('ip')
 
-    # Validate user input to prevent command injection
+    # Validate user input using a regular expression
     if not re.match(r'^[a-zA-Z0-9.:]+$', ip):
         return render_template_string('<p>Invalid Input</p>')
 
-    # Use subprocess.check_output with a list of arguments
+    # Use subprocess with a list of arguments
     try:
         output = subprocess.check_output(['ping', '-c', '1', ip]).decode()
     except Exception as e:
