@@ -9,7 +9,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
-
+from dotenv import load_dotenv
 from sast_tools import run_and_parse_sast
 from ast_utils import extract_function_code, apply_patch_to_file
 
@@ -37,7 +37,8 @@ def init_framework_db():
 init_framework_db()
 
 # --- GROQ CONFIGURATION ---
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or "API_KEY"
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 try:
     if "gsk_" not in GROQ_API_KEY:
         llm = None
