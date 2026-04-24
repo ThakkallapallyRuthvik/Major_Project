@@ -23,40 +23,31 @@ init_db()
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    """SECURE CODE: SQL Injection in Login fixed"""
+    """VULNERABILITY: SQL Injection in Login"""
     error = None
     if request.method == 'POST':
-        # Import necessary modules inside the function body
-        import sqlite3
-        from flask import render_template_string, redirect, url_for, session, request
-
-        # Get username and password from the form
         username = request.form['username']
         password = request.form['password']
-
-        # Use parameterized query to prevent SQL Injection
-        query = "SELECT * FROM users WHERE username = ? AND password = ?"
-
-        # Connect to the database
+        
+        # ❌ FLAW: Direct string concatenation allows SQL Injection
+        # Exploit: Enter "admin' --" as username to bypass password
+        query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+        
         conn = sqlite3.connect('users.db')
         c = conn.cursor()
         try:
-            # Execute query with parameters
-            c.execute(query, (username, password))
+            c.execute(query)
             user = c.fetchone()
             conn.close()
-
-            # Check if the user exists
+            
             if user:
-                # Store the username in the session
                 session['user'] = user[1]
                 return redirect(url_for('dashboard'))
             else:
                 error = "Invalid Credentials"
         except Exception as e:
-            # Handle any exceptions
             error = str(e)
-
+            
     # Simple Login Page HTML
     return render_template_string('''
         <html>
@@ -104,24 +95,24 @@ def dashboard():
 
 @app.route('/ping', methods=['POST'])
 def ping():
-    import re
     import subprocess
-    from flask import request, render_template_string
+    import shlex
+    import os
+    from flask import request
+    from markupsafe import Markup, escape
+    from jinja2 import Template
 
     ip = request.form.get('ip')
 
-    # Validate user input using a regular expression
-    if not re.match(r'^[a-zA-Z0-9.:]+$', ip):
-        return render_template_string('<p>Invalid Input</p>')
+    command = f"ping -n 1 {shlex.quote(ip)}" if os.name == 'nt' else f"ping -c 1 {shlex.quote(ip)}"
 
-    # Use subprocess with a list of arguments
     try:
-        output = subprocess.check_output(['ping', '-c', '1', ip]).decode()
+        output = subprocess.check_output(shlex.split(command)).decode()
     except Exception as e:
         output = str(e)
 
-    # Use render_template_string with named arguments to prevent XSS
-    return render_template_string('<pre>{{ output }}</pre><br><a href="/dashboard">Back</a>', output=output)
+    template = Template("<pre>{{ output }}</pre><br><a href='/dashboard'>Back</a>")
+    return template.render(output=escape(output))
 
 @app.route('/search')
 def search():
