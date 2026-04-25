@@ -95,90 +95,57 @@ def dashboard():
 
 @app.route('/ping', methods=['POST'])
 def ping():
-    import subprocess
-    import shlex
-    import os
-    from flask import request
-    from markupsafe import Markup, escape
-    from jinja2 import Template
-
+    """VULNERABILITY: OS Command Injection"""
     ip = request.form.get('ip')
-
-    command = f"ping -n 1 {shlex.quote(ip)}" if os.name == 'nt' else f"ping -c 1 {shlex.quote(ip)}"
-
+    
+    # ❌ FLAW: Passing user input directly to shell
+    # Exploit: Enter "8.8.8.8; start calc" (Windows) or "8.8.8.8; ls" (Linux)
+    command = f"ping -n 1 {ip}" if os.name == 'nt' else f"ping -c 1 {ip}"
+    
     try:
-        output = subprocess.check_output(shlex.split(command)).decode()
+        # shell=True is the root cause of the vulnerability
+        output = subprocess.check_output(command, shell=True).decode()
     except Exception as e:
         output = str(e)
-
-    template = Template("<pre>{{ output }}</pre><br><a href='/dashboard'>Back</a>")
-    return template.render(output=escape(output))
+        
+    return f"<pre>{output}</pre><br><a href='/dashboard'>Back</a>"
 
 @app.route('/search')
 def search():
-    from flask import render_template_string
-    from shlex import quote
+    """VULNERABILITY: Reflected XSS (but with real DB logic)"""
     query = request.args.get('q', '')
-
-    import sqlite3
-    import flask
-
+    
     # --- 1. REAL LOGIC: Search the database ---
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-
+    
     # We use a SAFE query here (parameterized) so we don't accidentally 
     # trigger SQL Injection in the search bar. We want to focus on XSS here.
     c.execute("SELECT username FROM users WHERE username LIKE ?", ('%' + query + '%',))
     results = c.fetchall()
     conn.close()
-
-    # --- 2. SECURE OUTPUT: Use render_template_string with named args ---
-    template = """
-    <h3>🔍 Search Results for: {{ query }}</h3>
-    {% if results %}
-    <ul>
-    {% for user in results %}
-    <li>found user: <b>{{ user[0] }}</b></li>
-    {% endfor %}
-    </ul>
-    {% else %}
-    <p>No users found.</p>
-    {% endif %}
-    <a href='/dashboard'>Back</a>
-    """
-
-    return render_template_string(template, query=query, results=results)
+    
+    # --- 2. VULNERABLE OUTPUT: Reflected XSS ---
+    # The vulnerability is here: f"Results for: {query}"
+    # If the user types <script>..., it gets echoed back raw.
+    html_response = f"<h3>🔍 Search Results for: {query}</h3>"
+    
+    if results:
+        html_response += "<ul>"
+        for user in results:
+            html_response += f"<li>found user: <b>{user[0]}</b></li>"
+        html_response += "</ul>"
+    else:
+        html_response += "<p>No users found.</p>"
+        
+    html_response += "<a href='/dashboard'>Back</a>"
+    
+    return html_response
 
 @app.route('/logout')
 def logout():
     session.pop('user', None)
     return redirect(url_for('login'))
 
-@app.route('/debug')
-def debug_route():
-    import os
-    import shlex
-    import subprocess
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
-    if debug:
-        cmd = shlex.quote("python") + " -m" + shlex.quote("pdb") + " app.py"
-        subprocess.run(shlex.split(cmd))
-    return 'Debug route'
-
 if __name__ == '__main__':
-    import os
-    from flask import Flask, render_template_string
-    app = Flask(__name__)
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
-    template = '''
-    <html>
-    <body>
-    <h1>Debug Mode: {{ debug }}</h1>
-    </body>
-    </html>
-    '''
-    @app.route('/')
-    def index():
-        return render_template_string(template, debug=debug)
-    app.run(debug=debug, port=5001)
+    app.run(debug=True, port=5001,use_reloader=False)
