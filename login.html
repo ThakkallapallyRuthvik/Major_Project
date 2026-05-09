@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Login | Agentic SAST</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Outfit', sans-serif; 
+        body {
+            font-family: 'Outfit', sans-serif;
             margin: 0;
             min-height: 100vh;
             background: linear-gradient(-45deg, #0f172a, #1e1b4b, #020617, #172554);
@@ -17,9 +18,17 @@
         }
 
         @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         .glass-card {
@@ -62,7 +71,7 @@
             flex-direction: column;
             gap: 10px;
         }
-        
+
         .toast {
             min-width: 250px;
             padding: 12px 20px;
@@ -78,7 +87,7 @@
             gap: 10px;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
         }
-        
+
         .toast.show {
             transform: translateX(0);
             opacity: 1;
@@ -91,36 +100,44 @@
         }
     </style>
 </head>
+
 <body class="flex items-center justify-center">
 
     <div id="toast-container"></div>
 
     <div class="w-full max-w-md p-8 rounded-2xl glass-card mx-4">
-        <div class="flex justify-center mb-4">
+        <!-- <div class="flex justify-center mb-4">
             <div class="w-16 h-16 rounded-full bg-cyan-900/50 flex items-center justify-center border border-cyan-500/30">
                 <span class="text-3xl">🛡️</span>
             </div>
-        </div>
+        </div> -->
         <h1 class="text-3xl font-bold text-cyan-400 mb-2 text-center">Agentic SAST</h1>
         <p class="text-slate-400 text-sm text-center mb-8">Secure your codebase with autonomous agents.</p>
-        
+
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="mb-5">
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Username</label>
-                <input type="text" id="username" class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none" placeholder="Enter your username" required>
+                <label
+                    class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Username</label>
+                <input type="text" id="username" class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none"
+                    placeholder="Enter your username" required>
             </div>
             <div class="mb-8">
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Password</label>
-                <input type="password" id="password" class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none" placeholder="••••••••" required>
+                <label
+                    class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">Password</label>
+                <input type="password" id="password"
+                    class="w-full p-3 rounded-lg glass-input text-slate-200 outline-none" placeholder="••••••••"
+                    required>
             </div>
-            
-            <button type="submit" class="w-full py-3.5 rounded-lg font-bold text-white glow-btn relative overflow-hidden">
+
+            <button type="submit"
+                class="w-full py-3.5 rounded-lg font-bold text-white glow-btn relative overflow-hidden">
                 <span id="btnText">Login to Dashboard</span>
             </button>
         </form>
         <div class="mt-6 text-center">
             <span class="text-sm text-slate-500">Don't have an account? </span>
-            <a href="/register" class="text-sm text-cyan-400 hover:text-cyan-300 font-semibold transition hover:underline">Register</a>
+            <a href="/register"
+                class="text-sm text-cyan-400 hover:text-cyan-300 font-semibold transition hover:underline">Register</a>
         </div>
     </div>
 
@@ -131,10 +148,10 @@
             toast.className = `toast toast-${type}`;
             toast.innerHTML = `<span>⚠️</span> ${message}`;
             container.appendChild(toast);
-            
+
             // Trigger animation
             setTimeout(() => toast.classList.add('show'), 10);
-            
+
             // Remove after 3 seconds
             setTimeout(() => {
                 toast.classList.remove('show');
@@ -147,7 +164,7 @@
             const btnText = document.getElementById('btnText');
             const originalText = btnText.innerText;
             btnText.innerText = "Authenticating...";
-            
+
             const payload = {
                 username: document.getElementById('username').value,
                 password: document.getElementById('password').value
@@ -160,7 +177,7 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                
+
                 if (data.status === 'success') {
                     btnText.innerText = "Success! Redirecting...";
                     setTimeout(() => window.location.href = '/dashboard', 500);
@@ -168,11 +185,12 @@
                     showToast(data.error || "Login Failed");
                     btnText.innerText = originalText;
                 }
-            } catch(e) {
+            } catch (e) {
                 showToast("Network Error.");
                 btnText.innerText = originalText;
             }
         }
     </script>
 </body>
+
 </html>

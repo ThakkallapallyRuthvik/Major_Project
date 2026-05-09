@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #0f172a;
+        color: white;
+    }
+
+    .container {
+        width: 400px;
+        margin: 80px auto;
+        background: #1e293b;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    }
+
+    h1,
+    h2,
+    h3 {
+        text-align: center;
+    }
+
+    input {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+    }
+
+    button {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: #3b82f6;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    button:hover {
+        background: #2563eb;
+    }
+
+    .card {
+        background: #1e293b;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    .dashboard {
+        width: 800px;
+        margin: 40px auto;
+    }
+
+    .error {
+        color: #ef4444;
+        text-align: center;
+    }
+
+    .success {
+        color: #22c55e;
+    }
+
+    a {
+        color: #60a5fa;
+        text-decoration: none;
+    }
+
+    ul {
+        padding-left: 20px;
+    }
+</style>
+
+<body>
+
+    <div class="dashboard">
+
+        <h1>👋 Welcome, {{ user }}</h1>
+
+        <div class="card">
+            <h3>🛠️ Network Health Check</h3>
+
+            <form action="/ping" method="POST">
+                <input type="text" name="ip" placeholder="Enter IP Address">
+                <button type="submit">Ping Server</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>🔎 Employee Search</h3>
+
+            <form action="/search" method="GET">
+                <input type="text" name="q" placeholder="Search employee...">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+
+        <div style="text-align:center; margin-top:20px;">
+            <a href="/logout">Logout</a>
+        </div>
+
+    </div>
+
+</body>
+
+</html>

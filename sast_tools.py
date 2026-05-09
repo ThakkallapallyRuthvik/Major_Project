@@ -12,12 +12,12 @@ class FlawOutput(BaseModel):
     severity: str
     code_snippet: str
 
-def run_and_parse_sast(target_directory: str) -> str:
+def run_and_parse_sast(target_directory: str, language: str) -> str:
     print(f"[Scanner] Starting analysis on: {target_directory}")
     
     semgrep_command = [
         "semgrep", "scan",
-        "--config", "p/python",
+        "--config", f"p/{language}",
         "--json",
         target_directory
     ]
@@ -34,6 +34,7 @@ def run_and_parse_sast(target_directory: str) -> str:
 
     try:
         data = json.loads(process.stdout)
+        # print("semgrep output data:",data['results'][0]['extras']['metadata']['technology'])
     except json.JSONDecodeError:
         return json.dumps([{"error": "Failed to parse Semgrep output."}])
 

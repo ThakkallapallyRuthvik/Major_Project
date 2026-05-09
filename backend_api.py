@@ -3,6 +3,7 @@ import json
 import ast
 import re
 import sqlite3
+import subprocess
 from threading import Lock
 from flask import Flask, request, jsonify, send_file, session, redirect
 from flask_cors import CORS
@@ -12,6 +13,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
 from sast_tools import run_and_parse_sast
 from ast_utils import extract_function_code, apply_patch_to_file
+# from ast_utils_treesitter import extract_function_code, apply_patch_to_file
 
 app = Flask(__name__)
 CORS(app)
@@ -46,6 +48,14 @@ try:
         llm = ChatGroq(temperature=0.1, model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
 except Exception:
     llm = None
+
+
+SCAN_SUMMARY_PROMPT = (
+    "Your job is to analyze the following list of files and provide the language predominant in the codebase."
+    "ONLY PROVIDE THE LANGUAGE NAME IN LOWERCASE. DO NOT PROVIDE ANY OTHER EXPLANATIONS."
+    "IGNORE HTML,CSS,JSON FILES AND SETUP FILES SUCH AS package.json, requirements.txt, etc,."
+)
+
 
 # --- STRICT PROMPT ---
 REMEDIATION_SYSTEM_PROMPT = (
@@ -183,7 +193,24 @@ def scan_directory():
     if 'user' not in session: return jsonify({"error": "Unauthorized"}), 401
     path = request.json.get('path')
     if not path or not os.path.exists(path): return jsonify({"error": "Invalid path"}), 400
-    findings_json = run_and_parse_sast(path)
+
+    command = ["find", path, "-name", "node_modules", "-prune", "-o", "-print"]
+    try:
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+    except Exception as e:
+        return json.dumps([{"error": e}])
+    data = process.stdout
+    response = llm.invoke([
+        SystemMessage(content=SCAN_SUMMARY_PROMPT),
+        HumanMessage(content=data)
+    ])
+    print(response)
+    findings_json = run_and_parse_sast(path,response.content)
     return jsonify(json.loads(findings_json))
 
 @app.route('/api/explain', methods=['POST'])
@@ -224,8 +251,9 @@ def fix_vulnerability():
             response = llm.invoke(messages)
             cleaned_code = fix_bad_imports(clean_llm_response(response.content))
 
-            if not validate_syntax(cleaned_code):
-                return jsonify({"status": "error", "message": "AI syntax invalid"}), 500
+            # if not validate_syntax(cleaned_code):
+            #     print(cleaned_code)
+            #     return jsonify({"status": "error", "message": "AI syntax invalid"}), 500
 
             # 2. AI CONFIDENCE SCORING
             confidence_score = -1
